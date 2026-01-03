@@ -8,6 +8,43 @@ Your optimal setup combines **Docker-deployed Jellyfin with Intel Quick Sync har
 
 Between the two main images, **jellyfin/jellyfin (official)** edges out linuxserver/jellyfin for your DS920+ because it has native Intel QSV support without requiring additional Docker Mods. The linuxserver image requires `DOCKER_MODS=linuxserver/mods:jellyfin-opencl-intel` for OpenCL tone mapping—extra complexity for no benefit on Gemini Lake processors.
 
+## Storage configuration: SHR on 2x20TB HDDs
+
+This guide assumes **SHR (Synology Hybrid RAID)** with **2x20TB HDDs**, providing approximately 20TB usable storage with single-disk fault tolerance. SHR is the recommended RAID type for Synology—it offers the flexibility to expand with different drive sizes later while maintaining redundancy.
+
+**Volume layout for media server workloads**:
+- `/volume1` - Your primary SHR volume on the HDDs (media storage, downloads, Docker containers)
+- Consider creating a separate SSD volume if you install M.2 NVMe drives for databases and cache
+
+**Recommended shared folder structure**:
+```
+/volume1/
+├── docker/           # Container configs (consider SSD for databases)
+│   ├── jellyfin/
+│   │   ├── config/   # Jellyfin database and settings
+│   │   └── cache/    # Transcoding cache
+│   ├── sonarr/
+│   ├── radarr/
+│   ├── shoko/
+│   └── ...
+├── data/             # Single parent for hardlinks
+│   ├── torrents/     # Active downloads
+│   │   ├── movies/
+│   │   └── tv/
+│   └── media/        # Organized library
+│       ├── movies/
+│       ├── tv/
+│       └── anime/
+└── media/            # Alternative: direct media folders
+    ├── movies/
+    ├── tv/
+    └── anime/
+```
+
+**SHR performance considerations**: HDDs are fine for media streaming (sequential reads), but Jellyfin's SQLite database benefits significantly from SSD storage. If you add M.2 drives to the DS920+'s NVMe slots, create a separate volume and mount `/config` there, or enable SSD read-write caching for the HDD volume.
+
+## Hardware transcoding capabilities
+
 Your DS920+'s **Intel Celeron J4125** (Gemini Lake Refresh, UHD Graphics 600) supports hardware decode/encode for H.264, HEVC 8-bit/10-bit, VP9 8-bit, and MPEG-2. It cannot handle AV1 (requires 11th Gen+) and low-power encoding modes cause stability issues—disable these explicitly. Here's your production Docker Compose:
 
 ```yaml
